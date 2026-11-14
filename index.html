@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f6f2">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="description" content="A private, offline-ready space to understand and manage your money.">
+    <title>Paisa — Personal finance, made simple</title>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="./css/style.css">
+    <script type="module" src="./js/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="#" data-view="dashboard" aria-label="Paisa home">
+          <span class="brand-mark" aria-hidden="true">p</span>
+          <span>paisa<span class="brand-period">.</span></span>
+        </a>
+        <span class="nav-caption">WORKSPACE</span>
+        <nav class="primary-nav">
+          <button class="nav-item is-active" data-view="dashboard"><span aria-hidden="true">◫</span> Overview</button>
+          <button class="nav-item" data-view="transactions"><span aria-hidden="true">↕</span> Transactions</button>
+          <button class="nav-item" data-view="budgets"><span aria-hidden="true">◷</span> Budgets</button>
+          <button class="nav-item" data-view="planning"><span aria-hidden="true">◈</span> Goals &amp; bills</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="privacy-note"><span class="privacy-dot"></span><span><strong>Your money stays yours</strong><small>Private by design</small></span></div>
+          <button class="nav-item" data-view="settings"><span aria-hidden="true">⚙</span> Settings</button>
+          <div class="profile-chip"><span class="avatar">B</span><span><strong>My workspace</strong><small>Personal account</small></span><span class="profile-more" aria-hidden="true">···</span></div>
+        </div>
+      </aside>
+
+      <div class="main-column">
+        <header class="topbar">
+          <div class="mobile-brand"><span class="brand-mark" aria-hidden="true">p</span> paisa<span class="brand-period">.</span></div>
+          <div class="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong id="page-label">Overview</strong></div>
+          <div class="topbar-actions"><span class="today-label" id="today-label"></span><button class="icon-button" id="theme-toggle" aria-label="Toggle colour theme" title="Toggle colour theme">◐</button><button class="button button-primary top-add" data-action="add-transaction"><span aria-hidden="true">＋</span> Add transaction</button></div>
+        </header>
+        <main id="main-content" tabindex="-1">
+          <div id="view-root" aria-live="polite"></div>
+        </main>
+        <nav class="mobile-nav" aria-label="Main navigation">
+          <button class="nav-item is-active" data-view="dashboard"><span aria-hidden="true">◫</span><small>Home</small></button>
+          <button class="nav-item" data-view="transactions"><span aria-hidden="true">↕</span><small>Activity</small></button>
+          <button class="mobile-add" data-action="add-transaction" aria-label="Add transaction">＋</button>
+          <button class="nav-item" data-view="budgets"><span aria-hidden="true">◷</span><small>Budgets</small></button>
+          <button class="nav-item" data-view="settings"><span aria-hidden="true">⚙</span><small>Settings</small></button>
+        </nav>
+      </div>
+    </div>
+
+    <dialog id="transaction-dialog" class="modal">
+      <form id="transaction-form" class="modal-form">
+        <div class="modal-header"><div><p class="eyebrow">YOUR MONEY, YOUR WAY</p><h2 id="transaction-title">New transaction</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+        <div class="type-switch" role="group" aria-label="Transaction type"><button type="button" data-type="expense" class="is-selected">Expense</button><button type="button" data-type="income">Income</button></div>
+        <label class="field-label" for="transaction-amount">Amount</label>
+        <div class="amount-input"><span id="currency-prefix">₹</span><input id="transaction-amount" name="amount" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" required aria-describedby="amount-help"></div>
+        <span id="amount-help" class="field-hint">Enter an amount greater than zero</span>
+        <label class="field-label" for="transaction-category">Category</label><select id="transaction-category" name="categoryId" required></select>
+        <div class="form-grid"><div><label class="field-label" for="transaction-date">Date</label><input id="transaction-date" name="date" type="date" required></div><div><label class="field-label" for="transaction-account">Account</label><select id="transaction-account" name="accountId"></select></div></div>
+        <label class="field-label" for="transaction-note">Note <span class="optional">(optional)</span></label><input id="transaction-note" name="note" type="text" maxlength="120" placeholder="What was this for?">
+        <div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-dialog">Cancel</button><button type="submit" class="button button-primary">Save transaction <span aria-hidden="true">→</span></button></div>
+      </form>
+    </dialog>
+
+    <dialog id="csv-dialog" class="modal">
+      <form id="csv-form" class="modal-form">
+        <div class="modal-header"><div><p class="eyebrow">BRING YOUR DATA ALONG</p><h2>Import transactions</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+        <p class="muted">Map your CSV columns. Duplicate rows are skipped automatically.</p>
+        <label class="field-label" for="csv-file">CSV file</label><input id="csv-file" type="file" accept=".csv,text/csv" required>
+        <div id="csv-mapping" class="csv-mapping" hidden></div>
+        <div id="csv-preview" class="csv-preview"></div>
+        <div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-dialog">Cancel</button><button type="submit" id="csv-import-button" class="button button-primary" disabled>Import rows</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="category-dialog" class="modal modal-small">
+      <form id="category-form" class="modal-form">
+        <div class="modal-header"><div><p class="eyebrow">KEEP THINGS ORGANIZED</p><h2>Reassign transactions</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+        <p class="muted" id="category-delete-copy"></p>
+        <label class="field-label" for="category-reassign">Move transactions to</label><select id="category-reassign" required></select>
+        <div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-dialog">Cancel</button><button type="submit" class="button button-danger">Reassign &amp; delete</button></div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <input id="backup-file" type="file" accept="application/json,.json" hidden>
+  </body>
+</html>
