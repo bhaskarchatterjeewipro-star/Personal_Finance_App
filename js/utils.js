@@ -6,14 +6,15 @@ export const DEFAULT_CATEGORIES = [
   { id: "health", name: "Health", icon: "✚", color: "#8b83b6", type: "expense" },
   { id: "fun", name: "Fun", icon: "☼", color: "#d18c56", type: "expense" },
   { id: "salary", name: "Salary", icon: "↗", color: "#4b8a67", type: "income" },
+  { id: "fund-transfer", name: "Fund Transfers", icon: "⇄", color: "#5e7ad8", type: "both" },
   { id: "other", name: "Other", icon: "◌", color: "#8c9990", type: "both" },
 ];
 
 export const DEFAULT_ACCOUNTS = [
-  { id: "cash", name: "Cash", kind: "cash", openingBalanceMinor: 0 },
-  { id: "bank", name: "Main bank", kind: "bank", openingBalanceMinor: 0 },
+  { id: "bank", name: "Main Bank", kind: "bank", openingBalanceMinor: 0 },
 ];
 
+export const OVERALL_BUDGET_CATEGORY_ID = "__overall__";
 export const PALETTE = ["#739d70", "#dfaa61", "#8096b4", "#c78073", "#8b83b6", "#d18c56", "#4b8a67", "#8c9990"];
 
 export function amountToMinor(value) {

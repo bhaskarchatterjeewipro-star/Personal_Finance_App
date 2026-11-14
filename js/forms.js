@@ -1,4 +1,4 @@
-import { amountToMinor, closeDialog, openDialog } from "./utils.js";
+import { amountToMinor, closeDialog, openDialog, OVERALL_BUDGET_CATEGORY_ID } from "./utils.js";
 
 function createDialog(title, fields, onSubmit, services, submitLabel = "Save") {
   const dialog = document.createElement("dialog"); dialog.className = "modal modal-small";
@@ -47,9 +47,41 @@ export function createBudgetDialog(state, categoryId, services) {
   ], async (data) => {
     const limitMinor = amountToMinor(data.get("amount"));
     if (!limitMinor) throw new Error("Enter a valid budget greater than zero.");
-    const id = `${data.get("categoryId")}-${month}`;
-    await services.writeRecord(state.database, "budgets", { id, categoryId: data.get("categoryId"), month, limitMinor, updatedAt: new Date().toISOString() });
+    const selectedCategoryId = String(data.get("categoryId"));
+    const overall = state.budgets.find((item) => item.categoryId === OVERALL_BUDGET_CATEGORY_ID && item.month === month);
+    const otherCategoryBudgets = state.budgets
+      .filter((item) => item.month === month && item.categoryId !== OVERALL_BUDGET_CATEGORY_ID && item.categoryId !== selectedCategoryId)
+      .reduce((total, item) => total + item.limitMinor, 0);
+    if (overall && otherCategoryBudgets + limitMinor > overall.limitMinor) {
+      throw new Error("Combined category budgets cannot exceed the overall monthly budget.");
+    }
+    const id = `${selectedCategoryId}-${month}`;
+    await services.writeRecord(state.database, "budgets", { id, categoryId: selectedCategoryId, month, limitMinor, updatedAt: new Date().toISOString() });
   }, services);
+}
+
+export function createOverallBudgetDialog(state, services) {
+  const month = state.selectedMonth;
+  const existing = state.budgets.find((item) => item.categoryId === OVERALL_BUDGET_CATEGORY_ID && item.month === month);
+  createDialog("Set an overall monthly budget", [
+    { name: "amount", label: "Overall monthly limit", type: "number", min: "0.01", step: "0.01", placeholder: "0.00", value: existing ? (existing.limitMinor / 100).toFixed(2) : "" },
+  ], async (data) => {
+    const limitMinor = amountToMinor(data.get("amount"));
+    if (!limitMinor) throw new Error("Enter a valid overall budget greater than zero.");
+    const categoryBudgetTotal = state.budgets
+      .filter((item) => item.month === month && item.categoryId !== OVERALL_BUDGET_CATEGORY_ID)
+      .reduce((total, item) => total + item.limitMinor, 0);
+    if (categoryBudgetTotal > limitMinor) {
+      throw new Error("The overall budget cannot be lower than the combined category budgets.");
+    }
+    await services.writeRecord(state.database, "budgets", {
+      id: `${OVERALL_BUDGET_CATEGORY_ID}-${month}`,
+      categoryId: OVERALL_BUDGET_CATEGORY_ID,
+      month,
+      limitMinor,
+      updatedAt: new Date().toISOString(),
+    });
+  }, services, existing ? "Update budget" : "Set overall budget");
 }
 
 export function createGoalDialog(state, services) {

@@ -56,6 +56,44 @@ export async function seedStore(database, storeName, records) {
   });
 }
 
+export async function keepMainBankAccount(database) {
+  const [accounts, transactions, recurring] = await Promise.all([
+    readAll(database, "accounts"),
+    readAll(database, "transactions"),
+    readAll(database, "recurring"),
+  ]);
+  const existingBank = accounts.find((account) => account.id === "bank")
+    ?? accounts.find((account) => account.name.toLowerCase() === "main bank");
+  const openingBalanceMinor = accounts.reduce((total, account) => {
+    if (!Number.isSafeInteger(account.openingBalanceMinor)) throw new Error("An account has an invalid opening balance.");
+    const balance = total + account.openingBalanceMinor;
+    if (!Number.isSafeInteger(balance)) throw new Error("Combined account opening balances exceed the supported amount.");
+    return balance;
+  }, 0);
+  const mainBank = {
+    ...existingBank,
+    id: "bank",
+    name: "Main Bank",
+    kind: "bank",
+    openingBalanceMinor,
+  };
+  const tx = database.transaction(["accounts", "transactions", "recurring"], "readwrite");
+  tx.objectStore("accounts").clear();
+  tx.objectStore("accounts").put(mainBank);
+  for (const transaction of transactions) {
+    if (transaction.accountId !== "bank") tx.objectStore("transactions").put({ ...transaction, accountId: "bank" });
+  }
+  for (const rule of recurring) {
+    if (rule.accountId !== "bank") tx.objectStore("recurring").put({ ...rule, accountId: "bank" });
+  }
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error ?? new Error("Could not consolidate accounts."));
+    tx.onabort = () => reject(tx.error ?? new Error("Could not consolidate accounts."));
+  });
+  return mainBank;
+}
+
 export async function replaceAll(database, collections) {
   const tx = database.transaction(STORES, "readwrite");
   for (const store of STORES) {

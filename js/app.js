@@ -1,11 +1,11 @@
-import { deleteRecord, openDatabase, readAll, replaceAll, seedStore, storeNames, writeRecord } from "./db.js";
+import { deleteRecord, keepMainBankAccount, openDatabase, readAll, replaceAll, seedStore, storeNames, writeRecord } from "./db.js";
 import {
   amountToMinor, closeDialog, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, filterTransactions,
-  getMonthTotals, monthKey, openDialog, PALETTE, parseCsv,
+  getMonthTotals, monthKey, openDialog, OVERALL_BUDGET_CATEGORY_ID, PALETTE, parseCsv,
 } from "./utils.js";
 import { renderBudgets, renderPlanning, renderSettings, renderTransactions } from "./ui.js";
 import { renderDashboard } from "./ui-dashboard.js";
-import { createBudgetDialog, createContributionDialog, createGoalDialog, createRecurringDialog } from "./forms.js";
+import { createBudgetDialog, createContributionDialog, createGoalDialog, createOverallBudgetDialog, createRecurringDialog } from "./forms.js";
 import { processRecurring } from "./recurring.js";
 import { exportCsv, exportJson, importCsv, openCsvImport, renderCsvMapping, restoreJson } from "./backup.js";
 import { deleteCategory, reassignCategory } from "./category-actions.js";
@@ -44,7 +44,7 @@ function persistSettings() {
   localStorage.setItem("paisa-settings", JSON.stringify(state.settings));
 }
 
-const appServices = { writeRecord, reloadData, render, showToast, localDateString, persistSettings };
+const appServices = { writeRecord, keepMainBankAccount, reloadData, render, showToast, localDateString, persistSettings };
 
 function render() {
   root.replaceChildren();
@@ -176,6 +176,7 @@ async function handleClick(event) {
   else if (action === "show-more") { state.listLimit += 50; render(); }
   else if (action === "add-budget") createBudgetDialog(state, "", appServices);
   else if (action === "edit-budget") createBudgetDialog(state, target.dataset.categoryId, appServices);
+  else if (action === "set-overall-budget") createOverallBudgetDialog(state, appServices);
   else if (action === "add-goal") createGoalDialog(state, appServices);
   else if (action === "add-recurring") createRecurringDialog(state, appServices);
   else if (action === "contribute-goal") createContributionDialog(state, target.dataset.id, appServices);
@@ -229,13 +230,6 @@ function handleForm(event) {
     writeRecord(state.database, "categories", { id: crypto.randomUUID(), name, icon, color: PALETTE[state.categories.length % PALETTE.length], type: "both" })
       .then(async () => { await reloadData(); render(); showToast("Category added."); })
       .catch((error) => { console.error("Could not add category.", error); showToast("Could not add category."); });
-  } else if (form.dataset.form === "account") {
-    event.preventDefault();
-    const name = form.elements.name.value.trim();
-    if (!name || state.accounts.some((item) => item.name.toLowerCase() === name.toLowerCase())) { showToast("Choose an account name that is not already in use."); return; }
-    writeRecord(state.database, "accounts", { id: crypto.randomUUID(), name, kind: form.elements.kind.value, openingBalanceMinor: 0 })
-      .then(async () => { await reloadData(); render(); showToast("Account added."); })
-      .catch((error) => { console.error("Could not add account.", error); showToast("Could not add account."); });
   }
 }
 
@@ -243,14 +237,27 @@ async function initialize() {
   state.database = await openDatabase();
   await seedStore(state.database, "categories", DEFAULT_CATEGORIES);
   await seedStore(state.database, "accounts", DEFAULT_ACCOUNTS);
+  await keepMainBankAccount(state.database);
   await reloadData();
   await processRecurring(state, localDateString);
   await reloadData();
   document.querySelector("#today-label").textContent = new Intl.DateTimeFormat(state.settings.locale, { weekday: "short", day: "numeric", month: "short" }).format(new Date());
   render();
   if (navigator.storage?.persist) await navigator.storage.persist();
-  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
-    navigator.serviceWorker.register("./sw.js").catch((error) => console.warn("Offline support could not be enabled.", error));
+  if ("serviceWorker" in navigator) {
+    const isLocalHost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(location.hostname);
+    if (isLocalHost) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) await registration.unregister();
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.filter((name) => name.startsWith("paisa-shell-")).map((name) => caches.delete(name)));
+      } catch (error) {
+        console.warn("Could not clear the local offline cache.", error);
+      }
+    } else if (location.protocol === "https:") {
+      navigator.serviceWorker.register("./sw.js").catch((error) => console.warn("Offline support could not be enabled.", error));
+    }
   }
   if (!localStorage.getItem("paisa-backup-reminder")) {
     localStorage.setItem("paisa-backup-reminder", new Date().toISOString());

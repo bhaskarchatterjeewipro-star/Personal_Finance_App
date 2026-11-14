@@ -109,6 +109,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .trend-month small { color: #89938d; font-size: 9px; }
 .recent-panel { margin-top: 16px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.overall-budget-card { margin-bottom: 14px; }
+.overall-budget-card .section-heading h2 { margin: 0; font-size: 13px; }
+.overall-budget-amount { font-size: 12px; }
 .text-button { padding: 6px; border: 0; background: none; color: var(--green); font-size: 11px; font-weight: 600; }
 .transaction-list { display: grid; }
 .transaction-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 62px; border-bottom: 1px solid var(--line); }

@@ -1,4 +1,4 @@
-import { formatMoney, monthBounds } from "./utils.js";
+import { formatMoney, monthBounds, OVERALL_BUDGET_CATEGORY_ID } from "./utils.js";
 
 export const element = (tag, className = "", text = "") => {
   const item = document.createElement(tag);
@@ -68,7 +68,7 @@ export function transactionRow(transaction, state, actions = true) {
 export function renderTransactions(state, root) {
   const headingAction = element("div", "list-actions");
   headingAction.append(makeButton("Export CSV", "export-csv", "button button-quiet button-small"), makeButton("＋ Add transaction", "add-transaction", "button button-primary button-small"));
-  root.append(heading("Transactions", "Every little detail, all in one place.", headingAction));
+  root.append(heading("Transactions", "Select any income or expense transaction to edit or delete it.", headingAction));
   const filterPanel = element("section", "panel filter-panel");
   const search = element("input", "filter-control search-control");
   search.type = "search"; search.placeholder = "Search notes, category or account"; search.value = state.filters.query;
@@ -97,12 +97,48 @@ export function renderTransactions(state, root) {
 }
 
 export function renderBudgets(state, root) {
-  const action = makeButton("＋ Add budget", "add-budget", "button button-primary button-small");
-  root.append(heading("Budgets", "Plan with intention. Adjust whenever life changes.", action));
+  const actions = element("div", "list-actions");
+  actions.append(
+    makeButton("Set overall budget", "set-overall-budget", "button button-quiet button-small"),
+    makeButton("＋ Add category budget", "add-budget", "button button-primary button-small"),
+  );
+  root.append(heading("Budgets", "Plan with intention. Adjust whenever life changes.", actions));
   const monthInput = element("input", "month-select"); monthInput.type = "month"; monthInput.value = state.selectedMonth;
   monthInput.dataset.filter = "month"; monthInput.setAttribute("aria-label", "Select budget month");
   const intro = element("div", "section-heading"); intro.append(element("h2", "", "Monthly category limits"), monthInput); root.append(intro);
   const { start, end } = monthBounds(state.selectedMonth);
+  const overallBudget = state.budgets.find((item) => item.categoryId === OVERALL_BUDGET_CATEGORY_ID && item.month === state.selectedMonth);
+  const categoryBudgetTotal = state.budgets
+    .filter((item) => item.month === state.selectedMonth && item.categoryId !== OVERALL_BUDGET_CATEGORY_ID)
+    .reduce((total, item) => total + item.limitMinor, 0);
+  const totalSpent = state.transactions
+    .filter((item) => item.type === "expense" && item.date >= start && item.date <= end)
+    .reduce((total, item) => total + item.amountMinor, 0);
+  const overallCard = element("section", "panel overall-budget-card");
+  const overallHeading = element("div", "section-heading");
+  overallHeading.append(
+    element("h2", "", "Overall monthly budget"),
+    makeButton(overallBudget ? "Edit" : "Set", "set-overall-budget", "text-button"),
+  );
+  overallCard.append(overallHeading);
+  if (overallBudget) {
+    const percent = totalSpent / overallBudget.limitMinor * 100;
+    overallCard.append(element("strong", "overall-budget-amount", `${currency(state, totalSpent)} spent of ${currency(state, overallBudget.limitMinor)}`));
+    const track = element("div", "progress-track");
+    const fill = element("div", `progress-fill${percent >= 100 ? " over" : percent >= 80 ? " warning" : ""}`);
+    fill.style.width = `${Math.min(100, percent)}%`;
+    fill.setAttribute("role", "progressbar");
+    fill.setAttribute("aria-valuenow", String(Math.round(percent)));
+    fill.setAttribute("aria-valuemin", "0");
+    fill.setAttribute("aria-valuemax", "100");
+    fill.setAttribute("aria-label", "Overall budget used");
+    track.append(fill);
+    overallCard.append(track);
+  } else {
+    overallCard.append(element("p", "muted", "No overall limit set for this month."));
+  }
+  overallCard.append(element("p", "settings-note", `${currency(state, categoryBudgetTotal)} allocated across category budgets.`));
+  root.append(overallCard);
   const spent = new Map();
   for (const item of state.transactions) if (item.type === "expense" && item.date >= start && item.date <= end) {
     spent.set(item.categoryId, (spent.get(item.categoryId) ?? 0) + item.amountMinor);
@@ -219,21 +255,15 @@ export function renderSettings(state, root) {
   const categoryAdd = element("button", "button button-primary button-small", "Add"); categoryAdd.type = "submit";
   categoryForm.append(categoryName, categoryIcon, categoryAdd); categoryCard.append(categoryForm);
 
-  const accountCard = settingsCard("Accounts", "Cash, bank and card accounts are kept separate.");
+  const accountCard = settingsCard("Account", "All transactions use Main Bank.");
   const accountList = element("div", "account-list");
   for (const account of state.accounts) {
     const row = element("div", "account-row");
-    row.append(element("span", "category-icon", account.kind === "cash" ? "◉" : account.kind === "card" ? "▣" : "▤"));
+    row.append(element("span", "category-icon", "▤"));
     row.append(element("strong", "", account.name), element("small", "", currency(state, accountBalance(state, account))));
     accountList.append(row);
   }
   accountCard.append(accountList);
-  const accountForm = element("form", "settings-form-row"); accountForm.dataset.form = "account";
-  const accountName = element("input"); accountName.name = "name"; accountName.placeholder = "Account name"; accountName.maxLength = 32; accountName.required = true; accountName.setAttribute("aria-label", "New account name");
-  const kind = element("select"); kind.name = "kind"; kind.setAttribute("aria-label", "Account type");
-  for (const [value, label] of [["cash", "Cash"], ["bank", "Bank"], ["card", "Card"]]) { const option = element("option", "", label); option.value = value; kind.append(option); }
-  const accountAdd = element("button", "button button-primary button-small", "Add"); accountAdd.type = "submit";
-  accountForm.append(accountName, kind, accountAdd); accountCard.append(accountForm);
 
   const backupCard = settingsCard("Backup & restore", "Your data never leaves this device unless you export it.");
   backupCard.append(makeButton("Download full JSON backup", "export-json", "button button-primary button-small"));

@@ -100,7 +100,17 @@ export function renderDashboard(state, root) {
   const cards = element("div", "summary-grid");
   cards.append(summaryCard("Income", currency(state, totals.income), `${count} transaction${count === 1 ? "" : "s"} this month`, "↗"));
   cards.append(summaryCard("Expenses", currency(state, totals.expense), "Across all categories", "↘"));
-  cards.append(summaryCard("Net savings", currency(state, totals.income - totals.expense), totals.income > 0 ? `${Math.round((totals.income - totals.expense) / totals.income * 100)}% of income saved` : "Your monthly balance", "✦", true));
+  const previousMonth = new Date(`${state.selectedMonth}-01T12:00:00`);
+  previousMonth.setMonth(previousMonth.getMonth() - 1);
+  const previousEnd = monthBounds(monthKey(previousMonth)).end;
+  const openingBalance = state.accounts.reduce((total, account) => total + account.openingBalanceMinor, 0);
+  const carriedForward = openingBalance + state.transactions
+    .filter((item) => item.date <= previousEnd)
+    .reduce((balance, item) => balance + (item.type === "income" ? item.amountMinor : -item.amountMinor), 0);
+  const monthlyNet = totals.income - totals.expense;
+  const closingSavings = carriedForward + monthlyNet;
+  const monthlyNetLabel = `${monthlyNet >= 0 ? "+" : "−"}${currency(state, Math.abs(monthlyNet))}`;
+  cards.append(summaryCard("Net savings", currency(state, closingSavings), `Carried forward ${currency(state, carriedForward)} · This month ${monthlyNetLabel}`, "✦", true));
   root.append(cards);
   const { start, end } = monthBounds(state.selectedMonth);
   const categoryTotals = new Map();

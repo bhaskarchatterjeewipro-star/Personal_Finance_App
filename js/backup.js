@@ -28,6 +28,7 @@ export async function restoreJson(file, state, services) {
   if (!backupCollectionsValid(data)) throw new Error("This file is not a valid Paisa backup.");
   if (!window.confirm("Restore this backup? It will replace the data currently stored in this browser.")) return;
   await replaceAll(state.database, data.collections);
+  await services.keepMainBankAccount(state.database);
   if (data.settings && ["light", "dark"].includes(data.settings.theme)
     && ["INR", "USD", "EUR", "GBP", "SGD", "AUD"].includes(data.settings.currency)
     && ["en-IN", "en-US", "en-GB"].includes(data.settings.locale)) {
