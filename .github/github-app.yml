@@ -2,7 +2,7 @@ scripts:
   - name: Run
     command: python -m http.server 8000 --bind localhost
 
-server_ready_pattern: '(?i)(http://localhost:\d+)'
+server_ready_pattern: '(?i)(http://(?:localhost:\d+|127\.0\.0\.1:\d+|\[::1\]:\d+))'
 auto_open_in_browser: true
 
 automation:
