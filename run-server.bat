@@ -3,7 +3,7 @@ setlocal
 
 :menu
 cls
-echo Paisa local server
+echo Paisa local development server
 echo.
 echo 1. Start server
 echo 2. Stop server
@@ -19,7 +19,12 @@ powershell -NoProfile -Command "if (Get-NetTCPConnection -State Listen -LocalPor
 if errorlevel 1 (
     echo Port 8000 is already in use; opening the local page.
 ) else (
-    start "Paisa local server" /D "%~dp0" cmd /k "python -m http.server 8000"
+    if not exist "%~dp0node_modules\vite\bin\vite.js" (
+        echo Dependencies are missing. Run npm install in this folder first.
+        pause
+        goto menu
+    )
+    start "Paisa local server" /D "%~dp0" cmd /k "npm run dev"
     timeout /t 2 /nobreak >nul
 )
 start "" "http://localhost:8000/?refresh=%RANDOM%"

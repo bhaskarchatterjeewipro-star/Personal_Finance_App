@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f5f6f2">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:8000 ws://127.0.0.1:8000; object-src 'none'; base-uri 'self'; form-action 'self'">
     <meta name="description" content="A private, offline-ready space to understand and manage your money.">
     <title>Paisa — Personal finance, made simple</title>
     <link rel="manifest" href="./manifest.json">
@@ -13,7 +13,36 @@
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    <div class="app-shell">
+    <section class="auth-gate" id="auth-gate" aria-labelledby="auth-heading" hidden>
+      <div class="auth-card">
+        <a class="brand auth-brand" href="#" aria-label="Paisa home">
+          <span class="brand-mark" aria-hidden="true">p</span>
+          <span>paisa<span class="brand-period">.</span></span>
+        </a>
+        <p class="eyebrow">YOUR MONEY, YOUR WAY</p>
+        <h1 id="auth-heading">Welcome back</h1>
+        <p class="auth-description">Sign in to securely sync your finances across your devices.</p>
+        <form id="auth-form">
+          <label class="field-label" for="auth-name" hidden>Name</label>
+          <input id="auth-name" name="name" type="text" autocomplete="name" maxlength="80" hidden>
+          <label class="field-label" for="auth-email">Email</label>
+          <input id="auth-email" name="email" type="email" autocomplete="username" required>
+          <label class="field-label" for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required>
+          <button class="button button-primary auth-submit" id="auth-submit" type="submit">Sign in</button>
+          <button class="text-button auth-forgot" id="forgot-password" type="button">Forgot password?</button>
+        </form>
+        <form id="password-recovery-form" hidden>
+          <label class="field-label" for="auth-recovery-password">New password</label>
+          <input id="auth-recovery-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+          <button class="button button-primary auth-submit" type="submit">Update password</button>
+        </form>
+        <p id="auth-message" class="auth-message" role="status" hidden></p>
+        <button id="auth-mode-toggle" class="text-button auth-mode-toggle" type="button">Create an account</button>
+        <p id="auth-config-help" class="auth-config-help" hidden>Copy <code>.env.example</code> to <code>.env</code>, add your Supabase project URL and publishable/anon key, then restart the app. Apply <code>supabase/schema.sql</code> in the Supabase SQL Editor. Never use a service-role key in the browser.</p>
+      </div>
+    </section>
+    <div class="app-shell" hidden>
       <aside class="sidebar" aria-label="Main navigation">
         <a class="brand" href="#" data-view="dashboard" aria-label="Paisa home">
           <span class="brand-mark" aria-hidden="true">p</span>
@@ -27,9 +56,8 @@
           <button class="nav-item" data-view="planning"><span aria-hidden="true">◈</span> Goals &amp; bills</button>
         </nav>
         <div class="sidebar-bottom">
-          <div class="privacy-note"><span class="privacy-dot"></span><span><strong>Your money stays yours</strong><small>Private by design</small></span></div>
           <button class="nav-item" data-view="settings"><span aria-hidden="true">⚙</span> Settings</button>
-          <div class="profile-chip"><span class="avatar">B</span><span><strong>My workspace</strong><small>Personal account</small></span><span class="profile-more" aria-hidden="true">···</span></div>
+          <div class="profile-chip"><span class="avatar" id="profile-avatar">P</span><span><strong id="profile-name">My workspace</strong><small>Supabase account</small></span></div>
         </div>
       </aside>
 
@@ -37,7 +65,7 @@
         <header class="topbar">
           <div class="mobile-brand"><span class="brand-mark" aria-hidden="true">p</span> paisa<span class="brand-period">.</span></div>
           <div class="breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong id="page-label">Overview</strong></div>
-          <div class="topbar-actions"><span class="today-label" id="today-label"></span><button class="icon-button" id="theme-toggle" aria-label="Toggle colour theme" title="Toggle colour theme">◐</button><button class="button button-primary top-add" data-action="add-transaction"><span aria-hidden="true">＋</span> Add transaction</button></div>
+          <div class="topbar-actions"><button class="sync-status" id="sync-status" data-action="sync-now" type="button" hidden></button><span class="today-label" id="today-label"></span><button class="icon-button" id="theme-toggle" aria-label="Toggle colour theme" title="Toggle colour theme">◐</button><button class="button button-primary top-add" data-action="add-transaction"><span aria-hidden="true">＋</span> Add transaction</button></div>
         </header>
         <main id="main-content" tabindex="-1">
           <div id="view-root" aria-live="polite"></div>
@@ -86,7 +114,42 @@
       </form>
     </dialog>
 
+    <dialog id="profile-name-dialog" class="modal modal-small">
+      <form id="profile-name-form" class="modal-form">
+        <div class="modal-header"><div><p class="eyebrow">MAKE PAISA YOURS</p><h2>What should we call you?</h2></div></div>
+        <p class="muted">Add your name to finish setting up your account.</p>
+        <label class="field-label" for="profile-display-name">Your name</label>
+        <input id="profile-display-name" name="displayName" type="text" autocomplete="name" maxlength="80" required>
+        <p id="profile-name-error" class="auth-message is-error" role="status" hidden></p>
+        <div class="modal-actions"><button id="profile-name-cancel" type="button" class="button button-quiet" data-action="close-profile-name">Cancel</button><button type="submit" class="button button-primary">Save name</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="password-change-dialog" class="modal modal-small">
+      <form id="password-change-form" class="modal-form">
+        <div class="modal-header"><div><p class="eyebrow">SECURE YOUR ACCOUNT</p><h2>Change password</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+        <label class="field-label" for="current-password">Current password</label>
+        <input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required>
+        <label class="field-label" for="new-password">New password</label>
+        <input id="new-password" name="newPassword" type="password" autocomplete="new-password" minlength="8" required>
+        <label class="field-label" for="confirm-password">Confirm new password</label>
+        <input id="confirm-password" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required>
+        <p id="password-change-message" class="auth-message is-error" role="status" hidden></p>
+        <div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-dialog">Cancel</button><button type="submit" class="button button-primary">Update password</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="account-delete-dialog" class="modal modal-small">
+      <form id="account-delete-form" class="modal-form">
+        <div class="modal-header"><div><p class="eyebrow">PERMANENT ACTION</p><h2>Delete your account?</h2></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">×</button></div>
+        <p class="muted">This permanently deletes your sign-in, profile, and all synced financial records. This cannot be undone.</p>
+        <label class="field-label" for="account-delete-confirmation">Type DELETE to confirm</label>
+        <input id="account-delete-confirmation" name="confirmation" type="text" autocomplete="off" maxlength="6" required>
+        <p id="account-delete-message" class="auth-message is-error" role="status" hidden></p>
+        <div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-dialog">Cancel</button><button type="submit" class="button button-danger">Delete account permanently</button></div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <input id="backup-file" type="file" accept="application/json,.json" hidden>
   </body>
 </html>

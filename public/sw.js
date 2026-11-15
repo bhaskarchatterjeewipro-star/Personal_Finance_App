@@ -1,12 +1,16 @@
-const CACHE_NAME = "paisa-shell-v3";
-const APP_SHELL = [
-  "./", "./index.html", "./css/style.css", "./js/app.js", "./js/db.js", "./js/utils.js",
-  "./js/ui.js", "./js/ui-dashboard.js", "./js/forms.js", "./js/recurring.js",
-  "./js/backup.js", "./js/category-actions.js", "./manifest.json", "./icon.svg",
-];
+const CACHE_NAME = "paisa-shell-v4";
+const APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const response = await fetch("./index.html");
+    if (!response.ok) throw new Error("Could not load the app shell.");
+    const html = await response.text();
+    const assets = [...html.matchAll(/(?:src|href)=["'](\.\/[^"']+)["']/g)].map((match) => match[1]);
+    const cache = await caches.open(CACHE_NAME);
+    await cache.addAll([...new Set([...APP_SHELL, ...assets])]);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (event) => {

@@ -1,15 +1,9 @@
-import { replaceAll, storeNames } from "./db.js";
-import { amountToMinor, backupCollectionsValid, closeDialog, openDialog, parseCsv } from "./utils.js";
+import { amountToMinor, closeDialog, openDialog, parseCsv } from "./utils.js";
 
 function downloadFile(name, content, type) {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const link = document.createElement("a"); link.href = url; link.download = name;
   document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
-}
-
-export function exportJson(state, localDateString) {
-  const collections = Object.fromEntries(storeNames.map((store) => [store, state[store]]));
-  downloadFile(`paisa-backup-${localDateString()}.json`, JSON.stringify({ app: "paisa", schemaVersion: 1, exportedAt: new Date().toISOString(), settings: state.settings, collections }, null, 2), "application/json");
 }
 
 export function exportCsv(state) {
@@ -21,21 +15,6 @@ export function exportCsv(state) {
       state.accounts.find((account) => account.id === item.accountId)?.name ?? "", item.note]);
   }
   downloadFile("paisa-transactions.csv", rows.map((row) => row.map(quote).join(",")).join("\r\n"), "text/csv;charset=utf-8");
-}
-
-export async function restoreJson(file, state, services) {
-  const data = JSON.parse(await file.text());
-  if (!backupCollectionsValid(data)) throw new Error("This file is not a valid Paisa backup.");
-  if (!window.confirm("Restore this backup? It will replace the data currently stored in this browser.")) return;
-  await replaceAll(state.database, data.collections);
-  await services.keepMainBankAccount(state.database);
-  if (data.settings && ["light", "dark"].includes(data.settings.theme)
-    && ["INR", "USD", "EUR", "GBP", "SGD", "AUD"].includes(data.settings.currency)
-    && ["en-IN", "en-US", "en-GB"].includes(data.settings.locale)) {
-    state.settings = { ...state.settings, ...data.settings };
-    services.persistSettings();
-  }
-  await services.reloadData(); services.render(); services.showToast("Backup restored successfully.");
 }
 
 export function openCsvImport(state, dialog) {

@@ -132,24 +132,3 @@ export function parseCsv(text) {
   const headers = rows[0].map((header) => header.replace(/^\uFEFF/, ""));
   return { headers, rows: rows.slice(1).map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""]))) };
 }
-
-export function backupCollectionsValid(data) {
-  if (!data || data.schemaVersion !== 1 || typeof data.collections !== "object") return false;
-  const required = ["transactions", "categories", "budgets", "accounts", "goals", "recurring"];
-  const collections = data.collections;
-  return required.every((key) => Array.isArray(collections[key]))
-    && collections.transactions.every((item) => item && typeof item.id === "string" && Number.isSafeInteger(item.amountMinor) && item.amountMinor > 0
-      && ["income", "expense"].includes(item.type) && /^\d{4}-\d{2}-\d{2}$/.test(item.date)
-      && typeof item.categoryId === "string" && typeof item.accountId === "string" && typeof item.note === "string")
-    && collections.categories.every((item) => item && typeof item.id === "string" && typeof item.name === "string"
-      && typeof item.icon === "string" && typeof item.color === "string" && ["income", "expense", "both"].includes(item.type))
-    && collections.accounts.every((item) => item && typeof item.id === "string" && typeof item.name === "string"
-      && ["cash", "bank", "card"].includes(item.kind) && Number.isSafeInteger(item.openingBalanceMinor))
-    && collections.budgets.every((item) => item && typeof item.id === "string" && typeof item.categoryId === "string"
-      && /^\d{4}-\d{2}$/.test(item.month) && Number.isSafeInteger(item.limitMinor) && item.limitMinor > 0)
-    && collections.goals.every((item) => item && typeof item.id === "string" && typeof item.name === "string"
-      && Number.isSafeInteger(item.targetMinor) && item.targetMinor > 0 && Number.isSafeInteger(item.savedMinor) && item.savedMinor >= 0)
-    && collections.recurring.every((item) => item && typeof item.id === "string" && ["income", "expense"].includes(item.type)
-      && Number.isSafeInteger(item.amountMinor) && item.amountMinor > 0 && ["weekly", "monthly", "yearly"].includes(item.frequency)
-      && /^\d{4}-\d{2}-\d{2}$/.test(item.nextDue) && typeof item.categoryId === "string" && typeof item.accountId === "string");
-}

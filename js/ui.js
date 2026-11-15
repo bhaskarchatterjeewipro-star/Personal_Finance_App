@@ -265,18 +265,104 @@ export function renderSettings(state, root) {
   }
   accountCard.append(accountList);
 
-  const backupCard = settingsCard("Backup & restore", "Your data never leaves this device unless you export it.");
-  backupCard.append(makeButton("Download full JSON backup", "export-json", "button button-primary button-small"));
-  const restore = makeButton("Restore from JSON", "import-json", "button button-quiet button-small"); restore.style.marginLeft = "7px";
-  backupCard.append(restore, makeButton("Import a bank CSV", "import-csv", "button button-quiet button-small"));
-  const note = element("p", "settings-note", "Paisa stores transactions in this browser on this device. Clearing browser data will erase them. Keep a backup somewhere safe.");
-  note.style.marginTop = "15px"; backupCard.append(note);
+  const cloudCard = settingsCard("Your account", state.profile.displayName);
+  cloudCard.append(makeButton("Change name", "edit-profile-name", "button button-quiet button-small"));
+  cloudCard.append(makeButton("Change password", "change-password", "button button-quiet button-small"));
+  cloudCard.append(element("p", "settings-note", "Your records sync securely to your account. A local copy keeps the app usable offline; queued changes sync when you reconnect."));
+  cloudCard.append(makeButton("Sync now", "sync-now", "button button-quiet button-small"));
+  if (state.profile.role === "admin") {
+    const manageUsers = element("button", "button button-quiet button-small", "Manage users");
+    manageUsers.type = "button";
+    manageUsers.dataset.view = "admin";
+    cloudCard.append(manageUsers);
+  }
+  const signOut = makeButton("Sign out", "sign-out", "button button-quiet button-small");
+  signOut.style.marginLeft = "7px"; cloudCard.append(signOut);
 
-  const dataCard = settingsCard("Your privacy", "No account, trackers, bank connection, or server.");
-  dataCard.append(element("p", "settings-note", "All records stay in your browser’s IndexedDB. Export a backup before moving to another browser or device."));
-  dataCard.append(makeButton("Delete all app data", "reset-data", "button button-quiet button-small"));
-  grid.append(preferences, categoryCard, accountCard, backupCard, dataCard);
+  const dataCard = settingsCard("Your data", "Your cloud account is the source of truth.");
+  dataCard.append(element("p", "settings-note", "Paisa syncs your records with Supabase using per-user Row Level Security. The local browser database is an offline mirror. CSV transaction import and export remain available; JSON backup and restore are not used."));
+  dataCard.append(makeButton("Import a bank CSV", "import-csv", "button button-quiet button-small"));
+  dataCard.append(makeButton("Delete all financial data", "reset-data", "button button-danger button-small"));
+  const deleteAccountCard = settingsCard("Permanently delete account", "Remove your sign-in and all synced financial records. This cannot be undone.");
+  deleteAccountCard.append(makeButton("Delete account permanently", "delete-account", "button button-danger button-small"));
+  grid.append(preferences, categoryCard, accountCard, cloudCard, dataCard, deleteAccountCard);
   root.append(grid);
+}
+
+export function renderAdmin(state, root) {
+  const refresh = makeButton("Refresh", "admin-refresh", "button button-quiet button-small");
+  root.append(heading("Manage users", "Administer Paisa accounts. Financial records remain private to each user.", refresh));
+
+  const panel = element("section", "panel admin-panel");
+  const search = element("input", "filter-control admin-search");
+  search.type = "search";
+  search.placeholder = "Search users by name or email";
+  search.value = state.adminSearch ?? "";
+  search.dataset.adminSearch = "true";
+  search.setAttribute("aria-label", "Search users on this page");
+  panel.append(search);
+
+  if (state.adminLoading) {
+    panel.append(element("p", "muted", "Loading users…"));
+  } else if (state.adminError) {
+    panel.append(element("p", "auth-message is-error", state.adminError));
+  } else if (!state.adminUsers?.length) {
+    panel.append(element("p", "muted", state.adminSearch ? "No users match your search." : "No users found."));
+  } else {
+    const users = state.adminUsers;
+    const list = element("div", "admin-user-list");
+    for (const user of users) {
+      const row = element("article", "admin-user-row");
+      const identity = element("div", "admin-user-identity");
+      const name = element("strong", "", user.displayName || "Name not set");
+      identity.append(name, element("small", "", user.email || "No email address"));
+      const details = element("div", "admin-user-details");
+      const banned = Boolean(user.bannedUntil && Date.parse(user.bannedUntil) > Date.now());
+      details.append(
+        element("span", `admin-user-status${banned ? " is-disabled" : ""}`, banned ? "Disabled" : "Active"),
+        element("small", "", `${user.role === "admin" ? "Administrator" : "User"} · Joined ${new Date(user.createdAt).toLocaleDateString()}`),
+      );
+      const nameForm = element("form", "admin-name-form");
+      nameForm.dataset.form = "admin-name";
+      nameForm.dataset.userId = user.id;
+      const nameInput = element("input", "filter-control");
+      nameInput.type = "text";
+      nameInput.name = "displayName";
+      nameInput.value = user.displayName;
+      nameInput.maxLength = 80;
+      nameInput.required = true;
+      nameInput.setAttribute("aria-label", `Display name for ${user.email}`);
+      const saveName = element("button", "button button-quiet button-small", "Save name");
+      saveName.type = "submit";
+      nameForm.append(nameInput, saveName);
+
+      const actions = element("div", "admin-user-actions");
+      const status = makeButton(banned ? "Reactivate" : "Disable", "admin-user-toggle", "button button-quiet button-small");
+      status.dataset.userId = user.id;
+      status.dataset.banned = String(!banned);
+      if (user.id === state.user.id && !banned) status.disabled = true;
+      const reset = makeButton("Send reset email", "admin-user-reset", "button button-quiet button-small");
+      reset.dataset.userId = user.id;
+      const remove = makeButton("Delete", "admin-user-delete", "button button-danger button-small");
+      remove.dataset.userId = user.id;
+      remove.dataset.email = user.email;
+      if (user.id === state.user.id) remove.disabled = true;
+      actions.append(status, reset, remove);
+      row.append(identity, details, nameForm, actions);
+      list.append(row);
+    }
+    panel.append(list);
+  }
+
+  const pagination = element("div", "admin-pagination");
+  const previous = makeButton("Previous", "admin-users-previous", "button button-quiet button-small");
+  previous.disabled = state.adminLoading || state.adminPage <= 1;
+  const page = element("span", "", `Page ${state.adminPage}`);
+  const next = makeButton("Next", "admin-users-next", "button button-quiet button-small");
+  next.disabled = state.adminLoading || !state.adminHasMore;
+  pagination.append(previous, page, next);
+  panel.append(pagination);
+  root.append(panel);
 }
 
 function accountBalance(state, account) {

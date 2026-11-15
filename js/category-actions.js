@@ -1,4 +1,4 @@
-import { deleteRecord } from "./db.js";
+import { deleteRecord, readAll, writeRecord } from "./db.js";
 import { closeDialog, openDialog } from "./utils.js";
 
 export async function deleteCategory(state, id, dialog, services) {
@@ -24,14 +24,12 @@ export async function reassignCategory(event, state, dialog, services) {
   event.preventDefault();
   const from = state.pendingCategoryId; const to = document.querySelector("#category-reassign").value;
   if (!from || !to) return;
-  const tx = state.database.transaction(["transactions", "budgets", "recurring", "categories"], "readwrite");
   for (const store of ["transactions", "budgets", "recurring"]) {
-    const records = await new Promise((resolve, reject) => {
-      const request = tx.objectStore(store).getAll(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
-    });
-    for (const item of records) if (item.categoryId === from) tx.objectStore(store).put({ ...item, categoryId: to });
+    const records = await readAll(state.database, store);
+    for (const item of records) {
+      if (item.categoryId === from) await writeRecord(state.database, store, { ...item, categoryId: to });
+    }
   }
-  tx.objectStore("categories").delete(from);
-  await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error); });
+  await deleteRecord(state.database, "categories", from);
   closeDialog(dialog); state.pendingCategoryId = null; await services.reloadData(); services.render(); services.showToast("Category reassigned.");
 }
